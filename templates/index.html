@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sales & Customer Analytics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+    <div class="min-h-screen p-4 sm:p-6 lg:p-10">
+      <div class="mx-auto max-w-7xl">
+        <header class="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 class="text-3xl font-semibold text-slate-900">Sales & Customer Analytics Dashboard</h1>
+          <p class="mt-2 text-slate-600">Interactive analytics powered by FastAPI, MongoDB, React via CDN, Tailwind CSS, and Chart.js.</p>
+        </header>
+
+        <div id="root"></div>
+      </div>
+    </div>
+
+    <script type="text/babel">
+      const { useEffect, useMemo, useRef, useState } = React;
+
+      function formatCurrency(value) {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2,
+        }).format(value || 0);
+      }
+
+      function KPICards({ summary }) {
+        return (
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { title: 'Total Revenue', value: formatCurrency(summary.total_sales) },
+              { title: 'Total Orders', value: summary.total_orders ?? 0 },
+              { title: 'Average Order Value', value: formatCurrency(summary.average_order_value) },
+            ].map((card) => (
+              <div key={card.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">{card.title}</p>
+                <p className="mt-4 text-3xl font-semibold text-slate-900">{card.value}</p>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      function FilterBar({ filters, setFilters, options, onReset }) {
+        return (
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-4">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Customer</span>
+                <select
+                  value={filters.customer_name}
+                  onChange={(event) => setFilters({ ...filters, customer_name: event.target.value })}
+                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="">All customers</option>
+                  {options.customers.map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Category</span>
+                <select
+                  value={filters.category}
+                  onChange={(event) => setFilters({ ...filters, category: event.target.value })}
+                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="">All categories</option>
+                  {options.categories.map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Product</span>
+                <select
+                  value={filters.product}
+                  onChange={(event) => setFilters({ ...filters, product: event.target.value })}
+                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                >
+                  <option value="">All products</option>
+                  {options.products.map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Min Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={filters.min_amount ?? ''}
+                    onChange={(event) => setFilters({ ...filters, min_amount: event.target.value ? Number(event.target.value) : null })}
+                    placeholder="0"
+                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Max Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={filters.max_amount ?? ''}
+                    onChange={(event) => setFilters({ ...filters, max_amount: event.target.value ? Number(event.target.value) : null })}
+                    placeholder="9999"
+                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Start Date</span>
+                <input
+                  type="date"
+                  value={filters.start_date}
+                  onChange={(event) => setFilters({ ...filters, start_date: event.target.value })}
+                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">End Date</span>
+                <input
+                  type="date"
+                  value={filters.end_date}
+                  onChange={(event) => setFilters({ ...filters, end_date: event.target.value })}
+                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={onReset}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Reset filters
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      function SalesCharts({ summary }) {
+        const monthlyRef = useRef(null);
+        const categoryRef = useRef(null);
+        const monthlyChart = useRef(null);
+        const categoryChart = useRef(null);
+
+        useEffect(() => {
+          const monthlyCtx = monthlyRef.current.getContext('2d');
+          const categoryCtx = categoryRef.current.getContext('2d');
+
+          if (monthlyChart.current) {
+            monthlyChart.current.destroy();
+          }
+          if (categoryChart.current) {
+            categoryChart.current.destroy();
+          }
+
+          const monthlyLabels = summary.monthly_trends.map((item) => item.month);
+          const monthlyValues = summary.monthly_trends.map((item) => item.total_sales);
+          monthlyChart.current = new Chart(monthlyCtx, {
+            type: 'bar',
+            data: {
+              labels: monthlyLabels,
+              datasets: [
+                {
+                  label: 'Monthly Sales',
+                  data: monthlyValues,
+                  backgroundColor: 'rgba(59, 130, 246, 0.65)',
+                  borderColor: 'rgba(59, 130, 246, 1)',
+                  borderWidth: 1,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { callback: (value) => `$${value}` },
+                },
+              },
+            },
+          });
+
+          const categoryLabels = summary.category_breakdown.map((item) => item.category);
+          const categoryValues = summary.category_breakdown.map((item) => item.total_sales);
+          const categoryColors = ['#3b82f6', '#f97316', '#14b8a6', '#8b5cf6', '#f43f5e', '#fbbf24'];
+
+          categoryChart.current = new Chart(categoryCtx, {
+            type: 'doughnut',
+            data: {
+              labels: categoryLabels,
+              datasets: [
+                {
+                  data: categoryValues,
+                  backgroundColor: categoryColors,
+                  borderWidth: 1,
+                },
+              ],
+            },
+            options: {
+              plugins: {
+                legend: { position: 'bottom' },
+              },
+              responsive: true,
+            },
+          });
+        }, [summary]);
+
+        return (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Monthly Sales Trends</h2>
+                <span className="text-sm text-slate-500">{summary.monthly_trends.length} months</span>
+              </div>
+              <canvas ref={monthlyRef} height="280" />
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Category Distribution</h2>
+                <span className="text-sm text-slate-500">{summary.category_breakdown.length} categories</span>
+              </div>
+              <canvas ref={categoryRef} height="280" />
+            </div>
+          </div>
+        );
+      }
+
+      function SalesTable({ sales, page, setPage, pageSize }) {
+        const pageCount = Math.max(1, Math.ceil(sales.length / pageSize));
+        const paginated = useMemo(() => {
+          const start = (page - 1) * pageSize;
+          return sales.slice(start, start + pageSize);
+        }, [sales, page, pageSize]);
+
+        useEffect(() => {
+          if (page > pageCount) {
+            setPage(pageCount);
+          }
+        }, [pageCount, page, setPage]);
+
+        return (
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Transactions</h2>
+                <p className="text-sm text-slate-500">Showing {paginated.length} of {sales.length} records</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page === 1}
+                  className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >Previous</button>
+                <span className="text-sm text-slate-600">Page {page} of {pageCount}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))}
+                  disabled={page === pageCount}
+                  className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >Next</button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-slate-700">
+                <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
+                  <tr>
+                    {['Order', 'Date', 'Customer', 'Region', 'Category', 'Product', 'Qty', 'Unit', 'Total', 'Method', 'Status'].map((heading) => (
+                      <th key={heading} className="px-4 py-3 font-semibold uppercase tracking-wide">{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.map((row) => (
+                    <tr key={row.order_id + row.order_date} className="border-b border-slate-200 even:bg-slate-50">
+                      <td className="px-4 py-3">{row.order_id}</td>
+                      <td className="px-4 py-3">{row.order_date?.slice(0, 10)}</td>
+                      <td className="px-4 py-3">{row.customer_name}</td>
+                      <td className="px-4 py-3">{row.region}</td>
+                      <td className="px-4 py-3">{row.category}</td>
+                      <td className="px-4 py-3">{row.product}</td>
+                      <td className="px-4 py-3">{row.quantity}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.unit_price)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.total_amount)}</td>
+                      <td className="px-4 py-3">{row.payment_method}</td>
+                      <td className="px-4 py-3">{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+
+      function App() {
+        const [sales, setSales] = useState([]);
+        const [summary, setSummary] = useState({
+          total_sales: 0,
+          total_orders: 0,
+          average_order_value: 0,
+          monthly_trends: [],
+          category_breakdown: [],
+        });
+        const [filters, setFilters] = useState({
+          customer_name: '',
+          category: '',
+          product: '',
+          min_amount: null,
+          max_amount: null,
+          start_date: '',
+          end_date: '',
+        });
+        const [page, setPage] = useState(1);
+        const pageSize = 10;
+
+        const queryString = useMemo(() => {
+          const params = new URLSearchParams();
+          Object.entries(filters).forEach(([key, value]) => {
+            if (value !== null && value !== '') {
+              params.set(key, value);
+            }
+          });
+          return params.toString();
+        }, [filters]);
+
+        const options = useMemo(() => {
+          const customers = Array.from(new Set(sales.map((row) => row.customer_name))).sort();
+          const categories = Array.from(new Set(sales.map((row) => row.category))).sort();
+          const products = Array.from(new Set(sales.map((row) => row.product))).sort();
+          return { customers, categories, products };
+        }, [sales]);
+
+        useEffect(() => {
+          setPage(1);
+        }, [queryString]);
+
+        useEffect(() => {
+          async function fetchData() {
+            const salesResponse = await fetch(`/api/sales?${queryString}`);
+            const summaryResponse = await fetch(`/api/sales/summary?${queryString}`);
+            const salesPayload = await salesResponse.json();
+            const summaryPayload = await summaryResponse.json();
+            setSales(salesPayload.data || []);
+            setSummary(summaryPayload);
+          }
+          fetchData();
+        }, [queryString]);
+
+        function resetFilters() {
+          setFilters({
+            customer_name: '',
+            category: '',
+            product: '',
+            min_amount: null,
+            max_amount: null,
+            start_date: '',
+            end_date: '',
+          });
+        }
+
+        return (
+          <div className="space-y-6">
+            <KPICards summary={summary} />
+            <FilterBar filters={filters} setFilters={setFilters} options={options} onReset={resetFilters} />
+            <SalesCharts summary={summary} />
+            <SalesTable sales={sales} page={page} setPage={setPage} pageSize={pageSize} />
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>

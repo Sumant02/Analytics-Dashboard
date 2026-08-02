@@ -1,0 +1,88 @@
+{
+  "info": {
+    "name": "Sales Dashboard API",
+    "description": "Postman collection for testing the FastAPI Sales Dashboard endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Get Sales Summary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/sales/summary",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["api", "sales", "summary"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const jsonData = pm.response.json();",
+              "pm.test('Has total_sales', function () {",
+              "    pm.expect(jsonData).to.have.property('total_sales');",
+              "});",
+              "pm.test('Has total_orders', function () {",
+              "    pm.expect(jsonData).to.have.property('total_orders');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Sales Records",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/sales?category=Electronics&min_amount=1000",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["api", "sales"],
+          "query": [
+            {
+              "key": "category",
+              "value": "Electronics"
+            },
+            {
+              "key": "min_amount",
+              "value": "1000"
+            }
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const jsonData = pm.response.json();",
+              "pm.test('Response contains data array', function () {",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

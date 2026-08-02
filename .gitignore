@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+
+# MongoDB local database files
+mongodb/
+data/
+mongodb_logs/
+
+# Uvicorn logs
+uvicorn-*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Postman setup / executables
+*.exe

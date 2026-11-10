@@ -84,6 +84,8 @@ http://localhost:8000
 - `GET /api/sales` - Returns transaction records filtered by query parameters
 - `GET /api/sales/summary` - Returns KPIs, monthly sales trends, and category breakdowns
 
+Date filters are selected in the Start Date and End Date fields and applied with **Apply date range**. Both endpoints apply the same MongoDB `order_date` range, including the full end date, so the transaction table, KPIs, and charts stay in sync. The start date must be on or before the end date.
+
 ### Supported query parameters
 - `customer_name`
 - `category`
@@ -92,6 +94,12 @@ http://localhost:8000
 - `max_amount`
 - `start_date` (ISO `YYYY-MM-DD`)
 - `end_date` (ISO `YYYY-MM-DD`)
+
+Run the date-filter tests with:
+
+```bash
+python -m unittest discover -s tests
+```
 
 ## Postman testing
 

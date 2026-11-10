@@ -1,8 +1,8 @@
 import os
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Optional
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pymongo import ASCENDING, DESCENDING
 import jinja2
@@ -24,8 +24,8 @@ def build_filter(
     product: Optional[str],
     min_amount: Optional[float],
     max_amount: Optional[float],
-    start_date: Optional[str],
-    end_date: Optional[str],
+    start_date: Optional[date],
+    end_date: Optional[date],
 ):
     filter_query = {}
 
@@ -42,12 +42,14 @@ def build_filter(
         if max_amount is not None:
             amount_query['$lte'] = max_amount
         filter_query['total_amount'] = amount_query
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail='start_date must be on or before end_date')
     if start_date or end_date:
         date_query = {}
         if start_date:
-            date_query['$gte'] = datetime.fromisoformat(start_date)
+            date_query['$gte'] = datetime.combine(start_date, time.min)
         if end_date:
-            date_query['$lte'] = datetime.fromisoformat(end_date)
+            date_query['$lte'] = datetime.combine(end_date, time.max)
         filter_query['order_date'] = date_query
 
     return filter_query
@@ -66,8 +68,8 @@ async def get_sales(
     product: Optional[str] = Query(None),
     min_amount: Optional[float] = Query(None),
     max_amount: Optional[float] = Query(None),
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
 ):
     filter_query = build_filter(customer_name, category, product, min_amount, max_amount, start_date, end_date)
     cursor = transactions.find(filter_query).sort('order_date', DESCENDING).limit(1000)
@@ -97,8 +99,8 @@ async def get_sales_summary(
     product: Optional[str] = Query(None),
     min_amount: Optional[float] = Query(None),
     max_amount: Optional[float] = Query(None),
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
 ):
     filter_query = build_filter(customer_name, category, product, min_amount, max_amount, start_date, end_date)
     pipeline = [

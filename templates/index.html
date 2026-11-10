@@ -50,7 +50,9 @@
         );
       }
 
-      function FilterBar({ filters, setFilters, options, onReset }) {
+      function FilterBar({ filters, setFilters, dateRange, setDateRange, options, onApplyDateRange, onReset }) {
+        const invalidDateRange = dateRange.start_date && dateRange.end_date && dateRange.start_date > dateRange.end_date;
+
         return (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid gap-4 lg:grid-cols-4">
@@ -122,13 +124,14 @@
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
               <label className="space-y-2">
                 <span className="text-sm font-medium text-slate-700">Start Date</span>
                 <input
                   type="date"
-                  value={filters.start_date}
-                  onChange={(event) => setFilters({ ...filters, start_date: event.target.value })}
+                  value={dateRange.start_date}
+                  max={dateRange.end_date || undefined}
+                  onChange={(event) => setDateRange({ ...dateRange, start_date: event.target.value })}
                   className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
                 />
               </label>
@@ -136,11 +139,20 @@
                 <span className="text-sm font-medium text-slate-700">End Date</span>
                 <input
                   type="date"
-                  value={filters.end_date}
-                  onChange={(event) => setFilters({ ...filters, end_date: event.target.value })}
+                  value={dateRange.end_date}
+                  min={dateRange.start_date || undefined}
+                  onChange={(event) => setDateRange({ ...dateRange, end_date: event.target.value })}
                   className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 focus:border-slate-500 focus:outline-none"
                 />
               </label>
+              <button
+                type="button"
+                onClick={onApplyDateRange}
+                disabled={Boolean(invalidDateRange)}
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Apply date range
+              </button>
               <button
                 type="button"
                 onClick={onReset}
@@ -148,6 +160,9 @@
               >
                 Reset filters
               </button>
+              {invalidDateRange && (
+                <p className="text-sm text-red-600" role="alert">Start date must be on or before end date.</p>
+              )}
             </div>
           </div>
         );
@@ -331,6 +346,8 @@
           start_date: '',
           end_date: '',
         });
+        const [dateRange, setDateRange] = useState({ start_date: '', end_date: '' });
+        const [loadError, setLoadError] = useState('');
         const [page, setPage] = useState(1);
         const pageSize = 10;
 
@@ -356,16 +373,38 @@
         }, [queryString]);
 
         useEffect(() => {
+          const controller = new AbortController();
+
           async function fetchData() {
-            const salesResponse = await fetch(`/api/sales?${queryString}`);
-            const summaryResponse = await fetch(`/api/sales/summary?${queryString}`);
-            const salesPayload = await salesResponse.json();
-            const summaryPayload = await summaryResponse.json();
-            setSales(salesPayload.data || []);
-            setSummary(summaryPayload);
+            try {
+              const [salesResponse, summaryResponse] = await Promise.all([
+                fetch(`/api/sales?${queryString}`, { signal: controller.signal }),
+                fetch(`/api/sales/summary?${queryString}`, { signal: controller.signal }),
+              ]);
+              if (!salesResponse.ok || !summaryResponse.ok) {
+                throw new Error('Unable to load dashboard data. Please check the selected filters and try again.');
+              }
+              const [salesPayload, summaryPayload] = await Promise.all([
+                salesResponse.json(),
+                summaryResponse.json(),
+              ]);
+              setSales(salesPayload.data || []);
+              setSummary(summaryPayload);
+              setLoadError('');
+            } catch (error) {
+              if (error.name !== 'AbortError') {
+                setLoadError(error.message);
+              }
+            }
           }
           fetchData();
+
+          return () => controller.abort();
         }, [queryString]);
+
+        function applyDateRange() {
+          setFilters({ ...filters, ...dateRange });
+        }
 
         function resetFilters() {
           setFilters({
@@ -377,12 +416,22 @@
             start_date: '',
             end_date: '',
           });
+          setDateRange({ start_date: '', end_date: '' });
         }
 
         return (
           <div className="space-y-6">
             <KPICards summary={summary} />
-            <FilterBar filters={filters} setFilters={setFilters} options={options} onReset={resetFilters} />
+            <FilterBar
+              filters={filters}
+              setFilters={setFilters}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              options={options}
+              onApplyDateRange={applyDateRange}
+              onReset={resetFilters}
+            />
+            {loadError && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700" role="alert">{loadError}</p>}
             <SalesCharts summary={summary} />
             <SalesTable sales={sales} page={page} setPage={setPage} pageSize={pageSize} />
           </div>

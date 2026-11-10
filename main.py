@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, Query, Request
@@ -47,7 +47,8 @@ def build_filter(
         if start_date:
             date_query['$gte'] = datetime.fromisoformat(start_date)
         if end_date:
-            date_query['$lte'] = datetime.fromisoformat(end_date)
+            end_date_obj = datetime.fromisoformat(end_date)
+            date_query['$lt'] = end_date_obj + timedelta(days=1)
         filter_query['order_date'] = date_query
 
     return filter_query
